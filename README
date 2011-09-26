@@ -1,0 +1,61 @@
+
+jackfft
+
+
+WHAT IT IS
+==========
+jackfft is a JACK client doing short-time spectrum analysis.
+
+
+WHAT IT DOES
+============
+It displays colored spectrum graph. Both axes are logarithmic.
+The lower sound frequency, the longer color's wave length. (can be reversed by changing one line in code)
+More, the hue and brightness also depends on frequency energy (Y value).
+Assuming 44.1kHz sampling rate, X axe is from about 20Hz to 22050Hz.
+Y axe is from -42dB to +6dB.
+
+
+HOW IT DOES IT
+==============
+Ignoring memory copying, caching, interfacing JACK, drawing it on the screen etc...
+jackfft grabs sample from JACK, then passes it through Hann window function.
+The windowed signal is processed with DCT-I (Discrete Cosine Transform - I).
+The frequency-domain signal is scaled logarithmically and displayed.
+
+
+WHAT DOES IT USE
+================
+ * JACK for audio input
+ * FFTW for converting from time domain to frequency domain
+ * SDL for cross-platform OpenGL initialization
+ * OpenGL for hardware-accelerated display
+
+
+WHY DID I WRITE IT
+==================
+Seriously, as an exercise (in JACK and FFTW) before writing some dynamics procesor working in frequency domain.
+You know how modern records are overcompressed; dynamics procesor I want to write will probably be
+multi-band expander bringing dynamics back to music. See also http://en.wikipedia.org/wiki/Loudness_war
+
+
+WHY WOULD YOU USE IT
+====================
+jackfft is not another music visualization toy.
+Unlike regular music player, it calculates high-resolution spectrum with logarithmic X axe.
+This allows you to see tone changes, harmonics etc. pretty accurately.
+(for example I was able to precisely see vocal in Soundgarden's 'Ugly Truth')
+Hardware-accelerated display (no FFT yet, sorry...) saves CPU even if you run jackfft on full screen.
+
+
+HOW TO BUILD AND RUN IT
+=======================
+You will need following packages in Debian (paste it after `aptitude install `):
+build-essential libc6-dev libjack-jackd2-dev libfftw3-dev libsdl1.2-dev libgl1-mesa-dev libglu1-mesa-dev
+After installing them read LICENSE (I don't want to be sued for jackfft burning your GPU etc...) and
+$ make run
+Connect it to some source using qjackctl or similar software and enjoy!
+
+
+Happy hacking!
+
