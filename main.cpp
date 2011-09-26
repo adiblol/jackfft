@@ -59,7 +59,7 @@ void window_resize(int width, int height) {
 }
 
 void color_from_value(float v, float &r, float &g, float &b) {
-	v=1.0-v;
+	//v=1.0-v;
 	if (v<0.0) { r=1.0+v; g=0; b=0; }                // -> red
 	if (v<0.2) { r=1; g=v*5.0; b=0; } else           // red -> yellow
 	if (v<0.4) { r=1-(v-0.2)*5.0; g=1; b=0; } else   // yellow -> green
@@ -164,7 +164,8 @@ int main(int argc, char** argv) {
 					FFTW_REDFT00, FFTW_ESTIMATE);
 				fft_alloc = true;
 				for (unsigned int i=0;i<buffer_size;i++) {
-					window[i] = 0.54 - (0.46 * cos( 2 * M_PI * (i / ((buffer_size - 1) * 1.0))));
+					//window[i] = 0.54 - (0.46 * cos( 2 * M_PI * (i / ((buffer_size - 1) * 1.0))));
+					window[i] = 0.5*( 1.0 - cos(2.0*M_PI*(float)i/(float)(buffer_size-1)) ); // Hann
 				}
 				buffer_size_changed = false;
 				for (unsigned int i=0;i<buffer_size;i++) {
