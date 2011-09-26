@@ -15,7 +15,7 @@ jack_port_t* jackport;
 
 typedef float sample;
 const size_t buffer_max = 16384;
-size_t buffer_size, buffer_jack_size, buffer_wnd_size;
+size_t buffer_size, buffer_jack_size, buffer_wnd_size, wnd_width;
 sample *buffer_1, *buffer_2, *buffer_input;
 bool buffer_locked, buffer_size_changed;
 
@@ -53,8 +53,23 @@ void window_resize(int width, int height) {
 	while (buffer_wnd_size<(width/2)) {
 		buffer_wnd_size *= 2;
 	}
+	wnd_width = width;
 	buffer_size_changed = true;
 	buffer_locked = false;
+}
+
+void color_from_value(float v, float &r, float &g, float &b) {
+	v=1.0-v;
+	if (v<0.0) { r=1.0+v; g=0; b=0; }                // -> red
+	if (v<0.2) { r=1; g=v*5.0; b=0; } else           // red -> yellow
+	if (v<0.4) { r=1-(v-0.2)*5.0; g=1; b=0; } else   // yellow -> green
+	if (v<0.6) { r=0; g=1; b=(v-0.4)*5.0; } else     // green -> turq
+	if (v<0.8) { r=0; g=1-(v-0.6)*5.0; b=1; } else   // turq -> blue
+	if (v<1.0) { r=(v-0.8)*5.0; g=0; b=1; } else {   // blue -> purple
+		r = 1;
+		g = v-1.0;
+		b = 1;
+	}
 }
 
 int main(int argc, char** argv) {
@@ -90,6 +105,7 @@ int main(int argc, char** argv) {
 	glMatrixMode(GL_PROJECTION);
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glEnable(GL_POLYGON_SMOOTH);
 
 	bool working = true;
 	SDL_Event event;
@@ -105,6 +121,8 @@ int main(int argc, char** argv) {
 	sample* buff_fft_in  = (sample*)fftwf_malloc(sizeof(sample)*buffer_max);
 	sample* buff_fft_out = (sample*)fftwf_malloc(sizeof(sample)*buffer_max);
 	sample* buff_disp_prev = new sample[buffer_max];
+	float* x_scale = new float[buffer_max+1];
+	bool* lines_occupied = new bool[buffer_max];
 	memchr(buff_disp_prev, 0, sizeof(sample)*buffer_max);
 	fftwf_plan fft;
 	bool fft_alloc = false;
@@ -128,11 +146,13 @@ int main(int argc, char** argv) {
 		memcpy(buff_fft_in, buffer_input, buffer_size*sizeof(sample));
 		buffer_locked = false;
 		if (buffer_size_changed) {
-			if (buffer_jack_size>buffer_wnd_size) {
+			/*if (buffer_jack_size>buffer_wnd_size) {
 				buffer_size = buffer_wnd_size;
 			} else {
 				buffer_size = buffer_jack_size;
-			}
+			}*/
+			buffer_size = buffer_jack_size;
+
 		}
 
 		if (buffer_size!=0) {
@@ -147,13 +167,18 @@ int main(int argc, char** argv) {
 					window[i] = 0.54 - (0.46 * cos( 2 * M_PI * (i / ((buffer_size - 1) * 1.0))));
 				}
 				buffer_size_changed = false;
+				for (unsigned int i=0;i<buffer_size;i++) {
+					x_scale[i] = logf(i/(float)buffer_size)/7.0f+1.0f;
+				}
+				x_scale[buffer_size] = 1;
+
 			}
 			for (unsigned int i=0;i<buffer_size;i++) {
 				buff_fft_in[i] *= window[i];
 			}
 			fftwf_execute(fft);
 	
-		}
+		};
 
 			
 		usleep(20000);
@@ -163,7 +188,7 @@ int main(int argc, char** argv) {
 		if (event.type==SDL_VIDEORESIZE) {
 			window_resize(event.resize.w, event.resize.h);
 		}
-
+		if (buffer_size==0) continue;
 			
 		glClear(GL_COLOR_BUFFER_BIT);
 
@@ -173,34 +198,57 @@ int main(int argc, char** argv) {
 		glVertex2f(0.5, 0); //bottom
 		glVertex2f(1, 0.5); //right
 */
-		for (unsigned int i=0;i<buffer_size;i++) {
+//		float next_x = 0;
+		memset(lines_occupied, 0, wnd_width*sizeof(bool));
+		for (unsigned int i=1;i<buffer_size-1;i++) {
 			float x1, x2, v, y;
-			x1 = ((float)i)/((float)buffer_size);
-			x2 = x1 + 1.0/(float)buffer_size;
+			//x1 = (logf(((float)i)/((float)buffer_size))+7.0f)/7.0f;
+			//x1 = next_x;
+			//x2 = (logf((i+1)/(float)buffer_size)+7.0f)/7.0f;
+			x1 = x_scale[i];
+			x2 = x_scale[i+1];
+			//if (floor(x_scale[i-1]*wnd_width)==floor(x2*wnd_width)) continue;
+			//next_x = x2;
+			/*int line = floor(x1*(float)wnd_width);
+			if ((line>=0) && (line<wnd_width)) {
+				if (lines_occupied[line]) continue;
+				lines_occupied[line] = true;
+			};*/
 			v = (logf(fabsf(buff_fft_out[i]/(float)buffer_size))/M_LN10+4.2f)/4.8f;
+			//if ((v>1000.0f) || (v<0.0f)) continue;
 			if (buff_disp_prev[i]<v) {
 				buff_disp_prev[i] = v;
 			} else {
 				buff_disp_prev[i] -= 0.015f;
 				if (buff_disp_prev[i]<0) buff_disp_prev[i] = 0;
 			}
+			//if (v>1.0f) continue;
 			//y = fabsf(buff_fft_out[i]);
 			/*if (v>fft_peak) {
 				printf("New FFT peak: %f\n", v);
 				fft_peak = v;
 			}*/
-			y = buff_disp_prev[i];
-			glColor4f(1, y, 0, 1);
-			glVertex2f(x1, 0);
-			glVertex2f(x2, 0);
-			glVertex2f(x2, y);
-			glVertex2f(x1, y);
-			
-			glColor4f(1,1,1, 0.2);
-			glVertex2f(x1, 0);
-			glVertex2f(x2, 0);
-			glVertex2f(x2, v);
-			glVertex2f(x1, v);
+			float c_r, c_g, c_b;
+
+			y = (buff_disp_prev[i]+buff_disp_prev[i-1]/2.0f+buff_disp_prev[i+1]/2.0f)/2.0f;
+			color_from_value(x1+y*0.3, c_r, c_g, c_b);
+			if ((v>0) && (v<1)) {
+				glColor4f(c_r,c_g,c_b, y/2.0);
+				glVertex2f(x1, 0);
+				glVertex2f(x2, 0);
+				glVertex2f(x2, v);
+				glVertex2f(x1, v);
+			}
+
+			if ((y>0) && (y<1)) {
+				//glColor4f(1, y, 0, 1);
+				glColor4f(c_r, c_g, c_b, y*0.6+0.4);
+				glVertex2f(x1, 0);
+				glVertex2f(x2, 0);
+				glColor4f(c_r, c_g, c_b, y);
+				glVertex2f(x2, y);
+				glVertex2f(x1, y);
+			}
 		}
 		glEnd();
 		glFlush();
